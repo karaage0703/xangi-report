@@ -1,0 +1,10 @@
+{
+  "id": "xangi-report",
+  "displayName": "xangi-report",
+  "version": "0.1.0",
+  "features": {
+    "ui": true,
+    "device": false,
+    "ai": true
+  }
+}

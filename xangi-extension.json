@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "id": "xangi-report",
+  "displayName": "xangi-report",
+  "version": "0.1.0",
+  "entrypoint": "scripts/xangi-extension",
+  "runtime": {
+    "kind": "managed-http"
+  },
+  "setup": {
+    "instructions": "XANGI_SETUP.md"
+  },
+  "update": {
+    "prepare": {
+      "command": "./scripts/prepare-update",
+      "args": []
+    }
+  },
+  "permissions": [
+    "Store report snapshots in workspace-scoped persistent storage",
+    "Send reports to the configured saving AI and Notion only when enabled or requested"
+  ],
+  "capabilities": [
+    {
+      "id": "xangi-report.manage",
+      "protocol": "http",
+      "healthPath": "/health"
+    }
+  ],
+  "ui": {
+    "capability": "xangi-report.manage",
+    "path": "/ui"
+  }
+}

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>比較レポートの例</title>
+    <style>
+      body {
+        font: 16px/1.8 system-ui;
+        margin: 0;
+        padding: 24px;
+        max-width: 800px;
+        color: #242625;
+        background: #fff;
+      }
+      h1 {
+        font-size: 26px;
+      }
+      label {
+        display: block;
+      }
+      input {
+        width: min(100%, 360px);
+      }
+      svg {
+        width: 100%;
+        height: auto;
+      }
+      output {
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>比較レポートの例</h1>
+    <p>動作確認用の架空データです。スライダーを動かすと比較値が変わります。</p>
+    <label for="value">案Bの比較値：<output id="result">60</output></label
+    ><input id="value" type="range" min="10" max="100" value="60" />
+    <svg viewBox="0 0 500 150" role="img" aria-label="案Aは40、案Bは60">
+      <text x="0" y="30">案A</text>
+      <rect x="60" y="10" width="160" height="35" fill="#8b9d93" />
+      <text x="0" y="90">案B</text>
+      <rect id="bar" x="60" y="70" width="240" height="35" fill="#28594a" />
+    </svg>
+    <p>出典：このサンプル内に埋め込んだ架空の数値。</p>
+    <script>
+      document.getElementById('value').addEventListener('input', (event) => {
+        document.getElementById('result').textContent = event.target.value;
+        document.getElementById('bar').setAttribute('width', Number(event.target.value) * 4);
+        document
+          .querySelector('svg')
+          .setAttribute('aria-label', '案Aは40、案Bは' + event.target.value);
+      });
+    </script>
+  </body>
+</html>
