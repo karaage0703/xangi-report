@@ -1,0 +1,15 @@
+{
+  "name": "xangi-report",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "configure": "node scripts/configure.mjs",
+    "test": "node --test test/*.test.mjs",
+    "build": "node scripts/check.mjs"
+  }
+}

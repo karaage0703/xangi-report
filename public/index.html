@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>xangi-report</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="title-group">
+        <button
+          id="toggle-library"
+          aria-label="一覧"
+          title="一覧を開閉"
+          aria-controls="library"
+          aria-expanded="true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <h1>xangi-report</h1>
+      </div>
+      <div class="actions">
+        <button id="settings-button" aria-label="Notion設定">
+          <span class="desktop-only">Notion</span>設定</button
+        ><button id="new-button" class="primary" aria-label="HTMLを追加">
+          <span class="desktop-only">HTMLを</span>追加
+        </button>
+      </div>
+    </header>
+    <p id="notice" role="status" aria-live="polite"></p>
+    <main class="layout">
+      <aside id="library" aria-label="レポート一覧">
+        <div class="library-heading">
+          <h2>一覧</h2>
+          <button id="close-library" class="desktop-only" type="button">一覧を閉じる</button>
+        </div>
+        <label for="search">レポートを探す</label
+        ><input type="search" id="search" placeholder="タイトル・案件名" />
+        <details id="library-options">
+          <summary>絞り込み・並び順<span id="filter-state"></span></summary>
+          <label class="check"><input type="checkbox" id="starred" />スター付きだけ</label>
+          <div class="list-controls">
+            <label
+              >表示<select id="archive-filter">
+                <option value="active">通常の一覧</option>
+                <option value="archived">アーカイブ</option>
+                <option value="all">すべて</option>
+              </select></label
+            >
+            <label
+              >並び順<select id="sort">
+                <option value="updated_desc">更新が新しい順</option>
+                <option value="created_desc">追加が新しい順</option>
+                <option value="updated_asc">更新が古い順</option>
+                <option value="created_asc">追加が古い順</option>
+                <option value="title_asc">タイトル順</option>
+              </select></label
+            >
+          </div>
+          <details id="classification-filters" open>
+            <summary>分類で絞り込む</summary>
+            <label for="category-filter">カテゴリ</label
+            ><select id="category-filter">
+              <option value="">すべて</option>
+            </select>
+            <label for="tag-filter">タグ</label
+            ><select id="tag-filter">
+              <option value="">すべて</option>
+            </select>
+            <button id="clear-filters" type="button">絞り込みを解除</button>
+          </details>
+        </details>
+        <p id="count" class="muted"></p>
+        <div id="reports" class="reports"></div>
+      </aside>
+      <div
+        id="resize-library"
+        role="separator"
+        tabindex="0"
+        aria-label="一覧の幅"
+        aria-controls="library"
+        aria-orientation="vertical"
+        aria-valuemin="220"
+        aria-valuemax="600"
+        aria-valuenow="290"
+      ></div>
+      <section id="reader" aria-label="レポート閲覧">
+        <div id="empty" class="empty">
+          <h2>レポートを手元に。</h2>
+          <p>作成したHTMLを保存して、ここから読み返せます。</p>
+          <button id="empty-add" class="primary">最初のHTMLを追加</button>
+        </div>
+        <div id="detail" hidden>
+          <div class="detail-header">
+            <div class="reading-toolbar">
+              <button id="back-button" class="mobile-only" aria-label="一覧へ" title="一覧へ">
+                ←
+              </button>
+              <h2 id="report-title"></h2>
+              <label class="zoom-label"
+                ><span class="sr-only">表示倍率</span
+                ><select id="viewer-zoom" aria-label="表示倍率">
+                  <option value="width">幅合わせ</option>
+                  <option value="page">全体表示</option>
+                  <option value="0.25">25%</option>
+                  <option value="0.5">50%</option>
+                  <option value="0.75">75%</option>
+                  <option value="1">100%</option>
+                  <option value="1.25">125%</option>
+                  <option value="1.5">150%</option>
+                  <option value="2">200%</option>
+                </select></label
+              >
+              <output id="viewer-scale" aria-live="polite"></output>
+              <button
+                id="details-button"
+                aria-controls="report-details"
+                aria-expanded="false"
+                aria-label="詳細・操作"
+                title="詳細・操作"
+              >
+                ⋯
+              </button>
+              <button
+                id="focus-button"
+                aria-pressed="false"
+                aria-label="表示を広げる"
+                title="表示を広げる"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" />
+                </svg>
+              </button>
+            </div>
+            <div id="report-details" hidden>
+              <h3 id="report-full-title"></h3>
+              <p id="report-meta" class="muted"></p>
+              <p id="report-classification" class="classification-chips"></p>
+              <p id="report-origin" class="muted"></p>
+              <div class="actions reader-actions">
+                <button id="star-button" aria-pressed="false">スター</button
+                ><button id="edit-button">更新</button><button id="classify-button">分類</button>
+                <button id="archive-button">アーカイブ</button>
+                <label class="version-label"
+                  >表示する版
+                  <select id="version"></select
+                ></label>
+                <a id="download" class="button" download>HTMLを取得</a>
+                <button id="save-button">Notionへ保存</button>
+              </div>
+              <div id="save-state" aria-live="polite"></div>
+              <p id="archive-state" class="muted" hidden>
+                アーカイブ済み — 通常の一覧には表示されません。
+              </p>
+            </div>
+          </div>
+          <div
+            id="report-viewport"
+            tabindex="0"
+            role="region"
+            aria-label="レポート表示領域（スクロールできます）"
+          >
+            <div id="report-stage">
+              <iframe
+                id="report-frame"
+                title="保存したレポート"
+                sandbox="allow-scripts"
+                referrerpolicy="no-referrer"
+              ></iframe>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <dialog id="editor">
+      <form id="report-form">
+        <div class="dialog-heading">
+          <h2 id="editor-title">HTMLを追加</h2>
+          <button type="button" data-close="editor" aria-label="閉じる">閉じる</button>
+        </div>
+        <details id="artifact-import">
+          <summary>xangiの過去のHTMLから取り込む</summary>
+          <label for="artifact-path">ファイルのパス・プレビューURL</label
+          ><input id="artifact-path" maxlength="4000" />
+          <label for="artifact-workspace">workspace ID（省略時はxangiの既定）</label
+          ><input id="artifact-workspace" maxlength="200" />
+          <label for="artifact-session">添付から取り込む場合の会話ID</label
+          ><input id="artifact-session" maxlength="200" />
+          <button id="preview-artifact" type="button">内容を確認</button
+          ><button id="clear-artifact" type="button">取り込み指定を解除</button>
+          <p id="artifact-status" class="muted" role="status"></p>
+        </details>
+        <label for="html-file">HTMLファイル</label
+        ><input id="html-file" type="file" accept=".html,.htm,text/html" />
+        <p class="muted">
+          画像・CSS・ライブラリを埋め込んだHTMLを使えます（2 MiBまで）。JavaScriptも動きます。
+        </p>
+        <label for="title">タイトル（必須）</label><input id="title" required maxlength="200" />
+        <label for="project">案件名</label><input id="project" maxlength="100" />
+        <div id="initial-classification">
+          <label for="new-category">カテゴリ</label
+          ><input id="new-category" list="category-options" maxlength="60" />
+          <label for="new-tags">タグ（カンマ区切り）</label
+          ><input id="new-tags" placeholder="調査, 開発" maxlength="1000" />
+        </div>
+        <label for="source-notes">出典・元資料</label
+        ><textarea id="source-notes" rows="2" maxlength="16000"></textarea>
+        <label for="html-content">HTML（必須）</label
+        ><textarea id="html-content" required rows="9" spellcheck="false"></textarea>
+        <p id="editor-error" role="alert"></p>
+        <div class="actions">
+          <button type="button" data-close="editor">キャンセル</button
+          ><button type="submit" class="primary">保存</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="settings">
+      <form id="settings-form">
+        <div class="dialog-heading">
+          <h2>Notion保存</h2>
+          <button type="button" data-close="settings">閉じる</button>
+        </div>
+        <label for="save-mode">保存するタイミング</label
+        ><select id="save-mode">
+          <option value="off">使わない</option>
+          <option value="manual">手動で保存</option>
+          <option value="auto">生成・更新時に自動保存</option>
+        </select>
+        <label for="destination">Notion保存先</label
+        ><input
+          id="destination"
+          maxlength="2000"
+          placeholder="ページ・データベースのURLや保存方針"
+        />
+        <label for="save-agent">保存担当AI</label
+        ><select id="save-agent">
+          <option value="">xangiの既定AI</option>
+        </select>
+        <p id="host-status" class="muted"></p>
+        <label for="save-skill">保存スキル名</label
+        ><input id="save-skill" required pattern="[a-z0-9][a-z0-9-]{0,63}" maxlength="64" />
+        <p class="muted">
+          保存AIが接続済みのNotionを使います。自動保存は、これから作成・更新するレポートが対象です。
+        </p>
+        <p id="settings-error" role="alert"></p>
+        <div class="actions">
+          <button type="button" data-close="settings">キャンセル</button
+          ><button type="submit" class="primary">設定を保存</button>
+        </div>
+      </form>
+    </dialog>
+    <datalist id="category-options"></datalist>
+    <dialog id="classification-dialog">
+      <form id="classification-form">
+        <div class="dialog-heading">
+          <h2>カテゴリ・タグ</h2>
+          <button type="button" data-close="classification-dialog">閉じる</button>
+        </div>
+        <label for="category">カテゴリ</label
+        ><input id="category" list="category-options" maxlength="60" />
+        <label for="tags">タグ（カンマ区切り、20個まで）</label><input id="tags" maxlength="1000" />
+        <p class="muted">
+          カテゴリは1つ、タグは複数付けられます。空のカテゴリは未分類です。本文の版は変わりません。
+        </p>
+        <p id="classification-error" role="alert"></p>
+        <div class="actions">
+          <button type="button" data-close="classification-dialog">キャンセル</button
+          ><button type="submit" class="primary">分類を保存</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
