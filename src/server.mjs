@@ -2,13 +2,12 @@ import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { openStore, reportView } from './storage.mjs';
+import { openStore } from './storage.mjs';
 import { createSaves, publicSave } from './saves.mjs';
 import { hostClient } from './features/ai.mjs';
 import { requireValue, HttpError } from './errors.mjs';
 import { viewingCsp, presentation } from './formats/html.mjs';
 import { root, loadConfig, validateConfig } from './config.mjs';
-import { listReports } from './listing.mjs';
 import { previewArtifact, importArtifact } from './imports.mjs';
 const staticFiles = {
   '/': ['index.html', 'text/html; charset=utf-8'],
@@ -18,8 +17,8 @@ const staticFiles = {
 };
 const uiCsp =
   "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'";
-export function safeReport(r, content = false) {
-  return { ...reportView(r, content), saves: r.saves.map(publicSave) };
+function safeReport(view) {
+  return { ...view, saves: view.saves.map(publicSave) };
 }
 async function readBody(req) {
   requireValue(
@@ -119,7 +118,7 @@ export async function createApp({
         const imported = await importArtifact(store, host, await readBody(req));
         if (!imported.duplicate) await saves.auto(imported.id, imported.revision);
         return send(imported.duplicate ? 200 : 201, {
-          ...safeReport(store.report(imported.id), true),
+          ...safeReport(store.view(imported.id, true)),
           duplicate: !!imported.duplicate,
           importedRevision: imported.importedRevision || 1,
         });
@@ -147,46 +146,43 @@ export async function createApp({
       }
       if (method === 'GET' && path === '/api/reports') {
         return send(200, {
-          reports: listReports(
-            store.snapshot().reports.map((r) => safeReport(r)),
-            url.searchParams,
-          ),
+          reports: store.list(url.searchParams).map(safeReport),
         });
       }
       if (method === 'POST' && path === '/api/reports') {
         const r = await store.create(await readBody(req));
         await saves.auto(r.id, r.revision);
-        return send(201, safeReport(store.report(r.id), true));
+        return send(201, safeReport(store.view(r.id, true)));
       }
       const match = path.match(/^\/api\/reports\/([0-9a-f-]{36})(?:\/(.*))?$/i);
       if (match) {
         const [, id, action = ''] = match;
-        if (method === 'GET' && action === '') return send(200, safeReport(store.report(id), true));
+        if (method === 'GET' && action === '')
+          return send(200, safeReport(store.view(id, url.searchParams.get('content') !== '0')));
         if (method === 'PUT' && action === '') {
           const r = await store.update(id, await readBody(req));
           await saves.auto(id, r.revision);
-          return send(200, safeReport(store.report(id), true));
+          return send(200, safeReport(store.view(id, true)));
         }
         if (method === 'PATCH' && action === '') {
           await store.star(id, await readBody(req));
-          return send(200, safeReport(store.report(id)));
+          return send(200, safeReport(store.view(id)));
         }
         if (method === 'POST' && action === 'save')
           return send(202, await saves.request(id, await readBody(req)));
         if (method === 'POST' && action === 'classification') {
           await store.classify(id, await readBody(req));
-          return send(200, safeReport(store.report(id)));
+          return send(200, safeReport(store.view(id)));
         }
         if (method === 'POST' && action === 'archive') {
           await store.archive(id, await readBody(req));
-          return send(200, safeReport(store.report(id)));
+          return send(200, safeReport(store.view(id)));
         }
         if (method === 'POST' && action === 'save-result')
           return send(200, await saves.report(id, await readBody(req)));
         const version = action.match(/^versions\/([1-9][0-9]*)(?:\/(view|download))?$/);
         if (method === 'GET' && version) {
-          const r = store.report(id),
-            artifact = r.versions[Number(version[1]) - 1];
+          const artifact = store.version(id, Number(version[1]));
           requireValue(artifact, '版が見つかりません', 404);
           if (!version[2]) return send(200, { ...artifact, reportId: id });
           if (version[2] === 'download')

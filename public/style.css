@@ -8,7 +8,7 @@
   --xangi-font-reading: 16px;
   --xangi-font-code: 13px;
   --xangi-font-metric: 24px;
-  --xangi-font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+  --xangi-font-family: system-ui, sans-serif;
 
   color-scheme: light dark;
   --bg: #f7f7f5;
@@ -449,7 +449,8 @@ body.resizing-library #report-frame {
   flex: 1;
   min-height: 0;
   min-width: 0;
-  overflow: auto;
+  /* Keep the available width fixed when the fitted report crosses the fold. */
+  overflow: auto scroll;
   overscroll-behavior: contain;
 }
 #report-stage {

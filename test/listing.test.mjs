@@ -73,7 +73,13 @@ test('archive hides only from active lists, supports filters and restoration wit
   );
   const archived = app.store.report(r.id);
   assert.deepEqual({ ...archived, archived: false }, before);
-  assert.equal((await call('/api/reports/' + r.id)).data.archived, true);
+  const { content, ...metadata } = (await call('/api/reports/' + r.id)).data;
+  assert.equal(content, input.content);
+  assert.equal(metadata.archived, true);
+  assert.equal(metadata.saves.at(-1).status, 'requested');
+  assert.equal(Object.hasOwn(metadata.saves.at(-1), 'callbackToken'), false);
+  assert.deepEqual((await call('/api/reports/' + r.id + '?content=0')).data, metadata);
+  assert.deepEqual((await call('/api/reports?archive=all')).data.reports, [metadata]);
   assert.equal((await call('/api/reports/' + r.id + '/versions/1/download')).data, input.content);
   assert.equal(
     (await call('/api/reports/' + r.id + '/archive', { archived: false, expectedArchived: true }))
@@ -101,6 +107,7 @@ test('legacy schema-2 reports default to active without rewriting state; archive
   store = await openStore(legacyDir);
   try {
     assert.equal(store.list()[0].archived, false);
+    assert.equal(store.list(new URLSearchParams('archive=active')).length, 1);
     assert.equal(await readFile(file, 'utf8'), raw);
     await store.archive(store.list()[0].id, { archived: true, expectedArchived: false });
   } finally {

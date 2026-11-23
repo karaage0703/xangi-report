@@ -9,7 +9,7 @@ Every endpoint requires the host-injected managed bearer. Browser requests go th
 - GET /health: readiness.
 - GET /api/reports?q=TEXT: search title/project/category/tags; starred filters stars, category and tag filter exact names, uncategorized=true filters empty categories. No content bodies. archive is active (default), archived, or all; sort is updated_desc (default), updated_asc, created_desc, created_asc, or title_asc. Unknown values return 400. IDs break sorting ties.
 - POST /api/reports: required title (200 characters) and content; optional project (100), sourceNotes (16000), format (default html), category, tags. Returns 201 with ID/revision.
-- GET /api/reports/{id}: current content, metadata, revisions, saving results.
+- GET /api/reports/{id}: current content, metadata, revisions, saving results. Set content=0 to omit the top-level content field.
 - PUT /api/reports/{id}: creation content fields plus expectedRevision; retains older revisions and rejects conflicts with 409. Does not change classification.
 - PATCH /api/reports/{id}: starred boolean.
 - POST /api/reports/{id}/archive: archived and expectedArchived booleans; conflicts return 409. Preserves content, timestamps, classification, and save results without triggering saving. Responses default legacy reports to archived:false.

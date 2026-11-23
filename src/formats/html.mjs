@@ -11,6 +11,16 @@ export function presentation(content) {
     content +
     `\n<script>
 (() => {
+  let width, height;
+  let resizeRun = 0;
+  const appliedGrowth = (previous, viewport) =>
+    previous && previous.viewport < viewport && previous.size === viewport;
+  const measure = (viewport, extent, previous) => {
+    if (previous?.viewport === viewport && previous.extent === extent) return previous;
+    const growingWithViewport = extent > viewport &&
+      (appliedGrowth(previous, viewport) || (resizeRun >= 2 && extent > previous?.extent));
+    return { viewport, extent, size: growingWithViewport ? viewport : extent };
+  };
   const send = () => {
     const root = document.documentElement, body = document.body;
     if (!root || !body) return;
@@ -19,9 +29,23 @@ export function presentation(content) {
     // every measurement because of their default margins.
     const viewportWidth = Math.abs(rect.width-innerWidth)<1;
     const viewportHeight = Math.abs(rect.height-innerHeight)<1;
-    parent.postMessage({type:'xangi-report-size',url:location.href,
-      width:Math.ceil(Math.max(innerWidth,body.scrollWidth,rect.width,viewportWidth?0:Math.max(root.scrollWidth,rect.right))),
-      height:Math.ceil(Math.max(innerHeight,body.scrollHeight,rect.height,viewportHeight?0:Math.max(root.scrollHeight,rect.bottom)))}, '*');
+    const widthExtent = Math.ceil(Math.max(innerWidth,body.scrollWidth,rect.width,viewportWidth?0:Math.max(root.scrollWidth,rect.right)));
+    const heightExtent = Math.ceil(Math.max(innerHeight,body.scrollHeight,rect.height,viewportHeight?0:Math.max(root.scrollHeight,rect.bottom)));
+    if (width?.viewport !== innerWidth || height?.viewport !== innerHeight) {
+      // A width change may legitimately require a height adjustment. Stop
+      // further growth when both adjustments feed back into the content.
+      resizeRun = appliedGrowth(width, innerWidth) || appliedGrowth(height, innerHeight)
+        ? resizeRun + 1 : 0;
+    } else if (widthExtent !== width.extent || heightExtent !== height.extent) {
+      // Content changed without an iframe resize, for example after a click.
+      resizeRun = 0;
+    }
+    const nextWidth = measure(innerWidth, widthExtent, width);
+    const nextHeight = measure(innerHeight, heightExtent, height);
+    if (width === nextWidth && height === nextHeight) return;
+    width = nextWidth;
+    height = nextHeight;
+    parent.postMessage({type:'xangi-report-size',url:location.href,width:width.size,height:height.size}, '*');
   };
   let queued = false;
   const update = () => { if (queued) return; queued = true; requestAnimationFrame(() => {queued=false;send()}); };

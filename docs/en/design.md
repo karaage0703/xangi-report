@@ -12,7 +12,7 @@ Use the host file browser as the default density reference, so lists and control
 - Reading content, including articles, mail, Markdown and conversations: 16px with 1.6–1.75 line height (`--xangi-font-reading`). Content headings can use 24/18/16px.
 - Code and file editors: 13px monospace (`--xangi-font-code`); prominent chart values: 24px (`--xangi-font-metric`).
 
-Use the same Inter, system sans-serif and Japanese Noto Sans JP fallback order. Preserve browser text enlargement. Each extension owns the same named CSS variables and works standalone; the parent iframe must not force fonts onto every descendant. Preserve imported report HTML and external preview typography.
+Use the device's system font for the management UI. Let the browser select fallback fonts for Japanese and other characters. Preserve browser text enlargement. Each extension owns the same named CSS variables and works standalone. The parent iframe leaves descendant font selection to the embedded page. Preserve imported report HTML and external preview typography.
 
 Keep existing layout, functions and reading order. Use 4px spacing increments, quiet neutral surfaces, blue actions, thin borders and 6–8px radii where appropriate. Mobile inputs stay at 16px and touch targets around 44px independently of text size. Screen titles normally stay 18px on desktop and mobile; do not shrink long-form text solely for narrow screens.
 
@@ -39,7 +39,7 @@ All service APIs require the injected bearer and reject unrelated Origins. UI as
 
 Stored originals, plain views, and downloads are unchanged. An allow-scripts iframe without allow-same-origin and sandbox/CSP response headers separate it from management privileges. Network, forms, and other frames are restricted. Direct views receive the same response restrictions.
 
-Only presentation=1 viewing copies receive a dimension-reporting script. The parent verifies the source Window, current URL, and finite dimensions, bounded to 12000px wide and 120000px high. It scales the appropriately sized iframe and scrolls the outer viewport without sharing DOM access. Measurement accounts for viewport-relative sizes to avoid growth loops. Authored CSPs that prohibit the script may prevent automatic measurement.
+Only presentation=1 viewing copies receive a dimension-reporting script. The parent verifies the source Window, current URL, and finite dimensions, bounded to 12000px wide and 120000px high. It scales the appropriately sized iframe and scrolls the outer viewport without sharing DOM access. Growth stops when iframe resizing repeatedly expands the content, including when width and height affect each other. Fitted sizes are bounded by the available viewport after reserving space for a vertical scrollbar. Overflow can scroll inside the iframe when the original allows it. Authored CSPs that prohibit the script may prevent automatic measurement.
 
 ## Data and updates
 
@@ -52,6 +52,8 @@ Storage is outside source and scoped by workspace/instance, preserving legacy pa
 Saving results must match request ID, session ID, content revision, and callback token, and report a real page URL/read-back verification. Unknown delivery is not automatically replayed; old results never mark new revisions saved. Automatic saving follows user-enabled settings.
 
 ## UI
+
+On startup, the UI requests settings, the report list, and the selected report's metadata in parallel. The iframe loads the selected HTML revision for viewing. The editor fetches the original HTML when the user opens it.
 
 The reader header uses one line. Source metadata and editing actions start collapsed. Long titles are truncated in the toolbar and available in full in the details panel. Expanding the reader temporarily hides the top menu and library without changing stored layout preferences. Desktop/mobile verification covers opening details, performing actions, closing them to read, and restoring the normal view.
 

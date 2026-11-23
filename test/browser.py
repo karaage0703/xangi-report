@@ -88,7 +88,13 @@ try:
         page.mouse.move(box['x']+box['width']/2,box['y']+80)
         page.mouse.down();page.mouse.move(box['x']+box['width']/2+100,box['y']+80,steps=8);page.mouse.up()
         assert int(handle.get_attribute("aria-valuenow")) == 400
-        page.reload();frame.get_by_role("button", name="比較値を変更").wait_for()
+        held_settings = []
+        page.route("**/api/settings", lambda route: held_settings.append(route), times=1)
+        page.reload(wait_until="commit")
+        page.locator("#reports .report-row").wait_for(timeout=3000)
+        frame.get_by_role("button", name="比較値を変更").wait_for(timeout=3000)
+        assert len(held_settings) == 1
+        held_settings[0].continue_()
         assert int(handle.get_attribute("aria-valuenow")) == 400
         box=handle.bounding_box()
         page.mouse.move(box['x']+box['width']/2,box['y']+100);page.mouse.down()
@@ -106,6 +112,7 @@ try:
         download = event.value
         assert pathlib.Path(download.path()).read_text() == report
         reader_tools();page.get_by_role("button", name="更新", exact=True).click()
+        expect(page.locator("#html-content")).to_have_value(report)
         page.locator("#title").fill("調査レポート 改訂")
         page.locator("#html-content").fill("<!doctype html><html><h1>改訂版の結果</h1></html>")
         page.locator("#editor").get_by_role("button", name="保存", exact=True).click()
@@ -272,15 +279,67 @@ try:
         first_size=page.locator('#report-frame').evaluate('f=>[f.clientWidth,f.clientHeight]')
         page.wait_for_timeout(200)
         assert page.locator('#report-frame').evaluate('f=>[f.clientWidth,f.clientHeight]')==first_size
+        feedback_html = ('<!doctype html><html><style>'
+                         'body{margin:0;min-height:100vh;padding-bottom:24px}'
+                         '</style><body><button onclick="document.body.style.minHeight=\'1600px\'">'
+                         'Viewport with padding</button></body></html>')
+        feedback_report = page.request.post(endpoint, data={
+            'title': 'viewport with padding', 'content': feedback_html,
+        }).json()
+        page.goto(ui + '#report=' + feedback_report['id'])
+        expect(frame.locator('body')).to_have_text('Viewport with padding')
+        sizes = page.locator('#report-frame').evaluate('''async frame => {
+            const heights = [];
+            for (let i = 0; i < 15; i++) {
+                await new Promise(requestAnimationFrame);
+                heights.push(frame.clientHeight);
+            }
+            return heights;
+        }''')
+        assert len(set(sizes[-8:])) == 1, sizes
+        assert sizes[-1] <= page.locator('#report-viewport').evaluate('v=>v.clientHeight') + 48, sizes
+        frame.get_by_role('button', name='Viewport with padding').click()
+        page.wait_for_function("() => document.querySelector('#report-frame').clientHeight === 1624")
+
+        def stable_reader(style):
+            html = '<!doctype html><style>body{margin:0;' + style + '}</style><body>Stable reader</body>'
+            report = page.request.post(endpoint, data={'title': 'Resize check', 'content': html}).json()
+            page.goto(ui + '#report=' + report['id'])
+            expect(frame.locator('body')).to_have_text('Stable reader')
+            sizes = page.locator('#report-frame').evaluate('''async frame => {
+                const stage = frame.parentElement;
+                const sizes = [];
+                for (let i = 0; i < 24; i++) {
+                    await new Promise(requestAnimationFrame);
+                    sizes.push([frame.clientWidth, frame.clientHeight, stage.clientWidth, stage.clientHeight]);
+                }
+                return sizes;
+            }''')
+            assert len({tuple(size) for size in sizes[-10:]}) == 1, sizes
+            return sizes[-1]
+
+        width, height, _, _ = stable_reader('width:calc(100vh + 24px);height:calc(100vw + 24px)')
+        assert max(width, height) < 1200
+        page.set_viewport_size({'width': 1017, 'height': 876})
+        page.add_style_tag(content='#report-viewport::-webkit-scrollbar{width:16px;height:16px}')
+        viewport = page.locator('#report-viewport')
+        available_width, available_height = viewport.evaluate('v=>[v.offsetWidth,v.offsetHeight]')
+        height = round((available_height + 8) * 1200 / available_width)
+        _, frame_height, stage_width, _ = stable_reader(f'width:1200px;height:{height}px;overflow:hidden')
+        assert frame_height >= height
+        assert stage_width <= viewport.evaluate('v=>v.clientWidth')
         assert errors == [], errors
         browser.close()
     (artifacts / "browser-result.json").write_text(json.dumps({"result": "passed", "checks": [
         "proxied UI with relative paths", "file upload", "interactive SVG and JavaScript", "sandbox parent/storage denial",
         "CSP network denial", "original download", "version update and previous version", "star/search",
-        "reload retention", "390px list-reader-return", "Notion settings and mock request", "direct-view sandbox",
+        "reload retention and viewing while settings are pending", "original HTML loaded into editor",
+        "390px list-reader-return", "Notion settings and mock request", "direct-view sandbox",
         "library close/open and persistence", "pointer and keyboard library resizing", "mobile width excludes desktop splitter",
         "category/tag edit without HTML revision", "persisted classification filters", "artifact snapshot import and duplicate prevention",
         "large fixed-size HTML fit/page/100% scroll and bottom-right interaction", "message source and numeric validation",
+        "viewport-relative padding settles and later content expansion is measured",
+        "cross-axis viewport sizing and scrollbar thresholds settle",
         "title/addition order and persisted sort", "archive hiding, persisted view and restoration",
         "compact reader toolbar, collapsed details and focused reading with exit", "no management-page JavaScript errors"]}, ensure_ascii=False, indent=2))
     print("Browser checks passed")
