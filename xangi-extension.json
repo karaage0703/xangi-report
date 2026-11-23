@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "xangi-report",
   "displayName": "xangi-report",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "entrypoint": "scripts/xangi-extension",
   "runtime": {
     "kind": "managed-http"

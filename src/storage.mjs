@@ -5,6 +5,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { requireValue, text, onlyKeys } from './errors.mjs';
 import * as html from './formats/html.mjs';
 import { classification } from './classification.mjs';
+import { listReports } from './listing.mjs';
 export const pendingStatuses = new Set([
   'queued',
   'creating',
@@ -252,8 +253,10 @@ export async function openStore(dir) {
     snapshot: () => clone(state),
     transact,
     report: (id) => clone(get(state, id)),
-    list: () =>
-      state.reports.map((r) => reportView(r)).sort((a, b) => b.updated.localeCompare(a.updated)),
+    view: (id, withContent) => reportView(get(state, id), withContent),
+    version: (id, revision) => clone(get(state, id).versions[revision - 1]),
+    list: (params = new URLSearchParams('archive=all')) =>
+      listReports(state.reports, params).map((r) => reportView(r)),
     settings: () => clone(state.settings),
     setSettings: (input) => transact((s) => (s.settings = validateSettings(input))),
     create: (input, origin = null) =>

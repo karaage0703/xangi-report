@@ -15,6 +15,7 @@ let reports = [],
   settings = null,
   editing = null,
   loadNumber = 0,
+  listLoadNumber = 0,
   refreshing = false;
 let imported = null,
   classifying = null,
@@ -24,8 +25,7 @@ const tagsFrom = (value) =>
     .split(/[,、]/)
     .map((x) => x.trim())
     .filter(Boolean);
-function filterOptions(id, values) {
-  const selected = $(id).value;
+function filterOptions(id, values, selected = $(id).value) {
   $(id).replaceChildren();
   const all = document.createElement('option');
   all.value = '';
@@ -204,9 +204,11 @@ function selection() {
   return { id: params.get('report'), revision: Number(params.get('revision')) || null };
 }
 function navigate(id, revision) {
+  const previous = location.hash;
   location.hash = id
     ? new URLSearchParams({ report: id, ...(revision ? { revision } : {}) }).toString()
     : '';
+  return location.hash !== previous;
 }
 let reportSize = { width: 0, height: 0, minimumWidth: 0 };
 let detailReportId = null;
@@ -238,20 +240,25 @@ window.addEventListener('keydown', (event) => {
 });
 function layoutReport() {
   const viewport = $('report-viewport');
-  if (!current || !reportSize.width || !viewport.clientWidth) return;
+  const width = viewport.clientWidth, height = viewport.clientHeight;
+  if (!current || !reportSize.width || !width) return;
   const mode = $('viewer-zoom').value;
   const scale =
     mode === 'width'
-      ? Math.min(1, viewport.clientWidth / reportSize.width)
+      ? Math.min(1, width / reportSize.width)
       : mode === 'page'
         ? Math.min(
             1,
-            viewport.clientWidth / reportSize.width,
-            viewport.clientHeight / reportSize.height,
+            width / reportSize.width,
+            height / reportSize.height,
           )
         : Number(mode);
-  $('report-stage').style.width = Math.ceil(reportSize.width * scale) + 'px';
-  $('report-stage').style.height = Math.ceil(reportSize.height * scale) + 'px';
+  const scaledWidth = Math.ceil(reportSize.width * scale);
+  const scaledHeight = Math.ceil(reportSize.height * scale);
+  $('report-stage').style.width =
+    (mode === 'width' || mode === 'page' ? Math.min(width, scaledWidth) : scaledWidth) + 'px';
+  $('report-stage').style.height =
+    (mode === 'page' ? Math.min(height, scaledHeight) : scaledHeight) + 'px';
   const frame = $('report-frame');
   frame.style.width = reportSize.width + 'px';
   frame.style.height = reportSize.height + 'px';
@@ -288,13 +295,13 @@ window.addEventListener('message', (event) => {
   reportSize.height = Math.max(240, Math.min(120000, Math.ceil(size.height)));
   layoutReport();
 });
-let viewportWidth = 0;
+let lastViewportWidth = 0;
 new ResizeObserver(() => {
-  const width = $('report-viewport').clientWidth;
-  if (width && width !== viewportWidth && current) {
-    viewportWidth = width;
-    reportSize.width = Math.max(240, width, reportSize.minimumWidth);
-    reportSize.height = Math.max(240, $('report-viewport').clientHeight);
+  const viewport = $('report-viewport');
+  if (viewport.offsetWidth && viewport.offsetWidth !== lastViewportWidth && current) {
+    lastViewportWidth = viewport.offsetWidth;
+    reportSize.width = Math.max(240, viewport.clientWidth, reportSize.minimumWidth);
+    reportSize.height = Math.max(240, viewport.clientHeight);
   }
   layoutReport();
 }).observe($('report-viewport'));
@@ -302,13 +309,18 @@ $('viewer-zoom').onchange = () => {
   $('report-viewport').scrollTo(0, 0);
   layoutReport();
 };
-function drawList() {
+function drawList(filters = {}) {
   const categories = [...new Set(reports.map((r) => r.category).filter(Boolean))].sort();
-  filterOptions('category-filter', [
-    '__uncategorized__',
-    ...categories.map((name) => 'category:' + name),
-  ]);
-  filterOptions('tag-filter', [...new Set(reports.flatMap((r) => r.tags))].sort());
+  filterOptions(
+    'category-filter',
+    ['__uncategorized__', ...categories.map((name) => 'category:' + name)],
+    filters.category,
+  );
+  filterOptions(
+    'tag-filter',
+    [...new Set(reports.flatMap((r) => r.tags))].sort(),
+    filters.tag,
+  );
   $('category-options').replaceChildren(
     ...categories.map((name) => {
       const option = document.createElement('option');
@@ -372,8 +384,9 @@ function showSaves() {
   panel.replaceChildren();
   const save = current.saves.at(-1);
   $('save-button').disabled =
-    settings?.saveMode === 'off' ||
-    settings?.aiEnabled === false ||
+    !settings ||
+    settings.saveMode === 'off' ||
+    settings.aiEnabled === false ||
     (save && pending.has(save.status));
   $('save-button').hidden = settings?.saveMode === 'off';
   if (!save) return;
@@ -486,7 +499,7 @@ async function select() {
     return;
   }
   try {
-    const data = await api('api/reports/' + encodeURIComponent(pick.id));
+    const data = await api('api/reports/' + encodeURIComponent(pick.id) + '?content=0');
     if (seq !== loadNumber) return;
     current = data;
     drawDetail();
@@ -497,10 +510,12 @@ async function select() {
     }
   }
 }
-async function refresh() {
-  reports = (await api('api/reports?archive=all&sort=' + encodeURIComponent($('sort').value)))
-    .reports;
-  drawList();
+async function refresh(filters) {
+  const seq = ++listLoadNumber;
+  const data = await api('api/reports?archive=all&sort=' + encodeURIComponent($('sort').value));
+  if (seq !== listLoadNumber) return;
+  reports = data.reports;
+  drawList(filters);
 }
 function openEditor(report = null) {
   showReportDetails(false);
@@ -538,10 +553,24 @@ async function saveCurrent(retryAfterCheck = false) {
 }
 $('new-button').onclick = () => openEditor();
 $('empty-add').onclick = () => openEditor();
-$('edit-button').onclick = () => openEditor(current);
+$('edit-button').onclick = async () => {
+  const report = current,
+    hash = location.hash,
+    button = $('edit-button');
+  if (report.id !== selection().id) return;
+  button.disabled = true;
+  try {
+    const { content } = await api('api/reports/' + report.id + '/versions/' + report.revision);
+    if (location.hash === hash) openEditor({ ...report, content });
+  } catch (error) {
+    if (location.hash === hash) message(error);
+  } finally {
+    button.disabled = false;
+  }
+};
 $('back-button').onclick = () => navigate(null);
-$('search').oninput = drawList;
-$('starred').onchange = drawList;
+$('search').oninput = () => drawList();
+$('starred').onchange = () => drawList();
 for (const id of ['category-filter', 'tag-filter', 'archive-filter'])
   $(id).onchange = () => {
     rememberFilters();
@@ -727,8 +756,7 @@ $('report-form').onsubmit = async (event) => {
     );
     $('editor').close();
     await refresh();
-    navigate(r.id, r.importedRevision);
-    if (selection().id === r.id) await select();
+    if (!navigate(r.id, r.importedRevision)) await select();
     notice(
       r.duplicate
         ? '同じ原本は取り込み済みです。保存済みの版を開きました'
@@ -800,6 +828,24 @@ $('settings-form').onsubmit = async (event) => {
   }
 };
 window.addEventListener('hashchange', () => select());
+let storedFilters = {};
+try {
+  storedFilters = JSON.parse(localStorage.getItem('xangi-report-filters') || '{}') || {};
+} catch {}
+if (['active', 'archived', 'all'].includes(storedFilters.archive))
+  $('archive-filter').value = storedFilters.archive;
+if ([...$('sort').options].some((o) => o.value === storedFilters.sort))
+  $('sort').value = storedFilters.sort;
+await Promise.all([
+  api('api/settings')
+    .then((data) => {
+      settings ??= data;
+      if (current) showSaves();
+    })
+    .catch(message),
+  refresh(storedFilters).catch(message),
+  select(),
+]).catch(message);
 setInterval(async () => {
   if (
     refreshing ||
@@ -811,29 +857,12 @@ setInterval(async () => {
   )
     return;
   refreshing = true;
+  const seq = loadNumber;
   try {
     await refresh();
-    if (current) await select();
+    if (current?.id === selection().id && seq === loadNumber) await select();
   } catch {
   } finally {
     refreshing = false;
   }
 }, 4000);
-try {
-  settings = await api('api/settings');
-  try {
-    const stored = JSON.parse(localStorage.getItem('xangi-report-filters') || '{}');
-    if (['active', 'archived', 'all'].includes(stored.archive))
-      $('archive-filter').value = stored.archive;
-    if ([...$('sort').options].some((o) => o.value === stored.sort)) $('sort').value = stored.sort;
-    await refresh();
-    $('category-filter').value = stored.category || '';
-    $('tag-filter').value = stored.tag || '';
-    drawList();
-  } catch {
-    await refresh();
-  }
-  await select();
-} catch (error) {
-  message(error);
-}

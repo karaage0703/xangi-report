@@ -13,17 +13,19 @@ export function listReports(reports, params) {
     title_asc: (a, b) => a.title.localeCompare(b.title, 'ja'),
   };
   requireValue(Object.hasOwn(sorts, sort), '並び順が不正です');
+  const filters = {
+    query: params.get('q') || '',
+    category: params.get('category') || '',
+    uncategorized: params.get('uncategorized') === 'true',
+    tag: params.get('tag') || '',
+  };
+  const starred = params.has('starred');
   return reports
     .filter(
       (r) =>
-        (archive === 'all' || r.archived === (archive === 'archived')) &&
-        (!params.has('starred') || r.starred) &&
-        matches(r, {
-          query: (params.get('q') || '').toLowerCase(),
-          category: params.get('category') || '',
-          uncategorized: params.get('uncategorized') === 'true',
-          tag: params.get('tag') || '',
-        }),
+        (archive === 'all' || (r.archived ?? false) === (archive === 'archived')) &&
+        (!starred || r.starred) &&
+        matches(r, filters),
     )
     .sort((a, b) => sorts[sort](a, b) || a.id.localeCompare(b.id));
 }
